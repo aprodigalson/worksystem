@@ -1,6 +1,6 @@
 import sqlalchemy
 from worksystem.database.model.base import Base
-from sqlalchemy import Column, String, Integer, Float
+from sqlalchemy import Column, String, Integer, Float, Enum
 
 class Owner(Base):
     __tablename__ = 'Owner'
@@ -9,4 +9,4 @@ class Owner(Base):
     # 姓名
     name = Column(String)
     # 角色
-    role = Column(String)
+    role = Column(Enum('业主','工作人员'))

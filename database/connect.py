@@ -20,6 +20,11 @@ class DbUtils(object):
     __Session = sessionmaker(bind=__engine)
     __session = __Session()
 
+
+    @classmethod
+    def get_session(cls):
+        return cls.__session
+
     @classmethod
     def add_item(cls,item):
         try:
@@ -59,6 +64,6 @@ class DbUtils(object):
 
 if __name__ == '__main__':
     # DbUtils.delete_all_table()
-    DbUtils.delete_table(Owner)
+    # DbUtils.delete_table(Owner)
     all_list = DbUtils.get_all(Owner)
     print(all_list)

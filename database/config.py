@@ -7,6 +7,5 @@ default_mysql_config = {
 }
 
 default_sqlite_config = {
-    'db_schema': 'worksystem.db',
-    'url': 'sqlite:///worksystem.db'
+    'url': 'sqlite:////Users/guyueyu/code/worksystem/database/worksystem.db'
 }
