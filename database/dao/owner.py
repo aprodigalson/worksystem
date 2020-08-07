@@ -31,9 +31,8 @@ class OwnerProcess(object):
         owners = cls.get_all_owner()
         result = ''
         for owner in owners:
-            tmp_owner = 'id: %s, name: %s, role:%s \n'% (owner.id, owner.name, owner.role)
-            print(tmp_owner)
-            result += tmp_owner
+            print(owner)
+            result += str(owner)
         return result
     # test_interface
 
@@ -42,7 +41,7 @@ class OwnerProcess(object):
         import random
         from worksystem.common.utils import StringUtils
         DbUtils.add_item(Owner(id=random.randint(1, 1000), name=StringUtils.random_string(5), role='业主'))
-
+        return 'success'
 
 if __name__ == '__main__':
     OwnerProcess.add_random_owner()

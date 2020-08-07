@@ -10,3 +10,6 @@ class Owner(Base):
     name = Column(String)
     # 角色
     role = Column(Enum('业主','工作人员'))
+
+    def __repr__(self):
+        return 'id: %s, name: %s, role:%s \n'% (self.id, self.name, self.role)
