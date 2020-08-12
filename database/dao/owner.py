@@ -1,5 +1,5 @@
 from worksystem.database.connect import DbUtils
-from worksystem.database.model.owner import Owner
+from worksystem.database.model.person import Owner
 
 
 class OwnerProcess(object):
@@ -34,14 +34,15 @@ class OwnerProcess(object):
             print(owner)
             result += str(owner)
         return result
-    # test_interface
 
+    # test_interface
     @classmethod
     def add_random_owner(cls):
         import random
         from worksystem.common.utils import StringUtils
         DbUtils.add_item(Owner(id=random.randint(1, 1000), name=StringUtils.random_string(5), role='业主'))
         return 'success'
+
 
 if __name__ == '__main__':
     OwnerProcess.add_random_owner()

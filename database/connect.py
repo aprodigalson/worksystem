@@ -1,4 +1,3 @@
-import sqlite3
 import logging
 import traceback
 
@@ -9,8 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from worksystem.database.config import default_sqlite_config
 
 from worksystem.database.model.base import Base
-from worksystem.database.model.village import Village
-from worksystem.database.model.owner import Owner
+from worksystem.database.model.person import Owner
 
 
 class DbUtils(object):
@@ -20,13 +18,12 @@ class DbUtils(object):
     __Session = sessionmaker(bind=__engine)
     __session = __Session()
 
-
     @classmethod
     def get_session(cls):
         return cls.__session
 
     @classmethod
-    def add_item(cls,item):
+    def add_item(cls, item):
         try:
             cls.__session.add(item)
             cls.__session.commit()
