@@ -34,11 +34,14 @@ class SLB(NetDevice):
             self.service_ip_pool = ['2.2.2.2']
         else:
             self.service_ip_pool = service_ip_pool
+        # nat 映射表，用于外访内匹配内部服务的IP端口
         self.nat_mapping = []
+        self.packet_num = 0
 
     def start(self):
         self.get_mapping_table()
         for ip in self.service_ip_pool:
+            #如果要使用网络，则需要执行NetWork.add_socket方法，类似与网口的占用
             NetWork.add_socket(ip, '', 'slb', self)
 
     def receive_packet(self, packet):
@@ -56,6 +59,7 @@ class SLB(NetDevice):
                 print('no this mapping')
 
     def send_packet(self):
+        self.packet_num += 1
         return self.packet_queue.get(timeout=1)
 
     def get_packet_level(self, packet):
@@ -107,6 +111,11 @@ class NetWork(object):
             if ip==socket.get('ip') and socket.get('port')=='':
                 return socket
         return NetWork.null_socket
+
+    @staticmethod
+    def translate_packets(packet_list):
+        for packet in packet_list:
+            NetWork.translate(packet)
 
     @staticmethod
     def translate(packet):
@@ -266,41 +275,46 @@ class TCPClient(object):
                         src_port_list = None,
                         dst_port_list=None):
         if src_ip_list is None :
-            src_ip_list = ['1.1.1.1'] * 10
+            src_ip_list = ['1.1.1.1'] * nums
         if dst_ip_list is None:
-            dst_ip_list = ['2.2.2.2'] * 10
+            dst_ip_list = ['2.2.2.2'] * nums
         if src_port_list is None:
-            src_port_list = [1000] * 10
+            src_port_list = [1000] * nums
         if dst_port_list is None:
-            dst_port_list = [2000] * 10
+            dst_port_list = [2000] * nums
         min_length = min([len(src_port_list),
                           len(src_ip_list),
                           len(dst_port_list),
                           len(dst_ip_list)])
+        res = []
         for index in range(min_length):
             packet = TCPPacket(src_ip=src_ip_list[index],
                                src_port=src_port_list[index],
                                dst_ip=dst_ip_list[index],
                                dst_port=dst_port_list[index])
-            NetWork.translate(packet)
+            res.append(packet)
+        if len(res)<nums:
+            res.extend([res[0] for _ in range(nums-len(res))])
+        return res
 
 class Main(object):
     def main_thread(self):
         k8s = K8S()
         msb = MSB()
         service_name='test-service-1'
-        service = Service(service_name, service_type='tcp')
+        service = Service(service_name,
+                          service_type='tcp')
         service.start(k8s, msb)
         service_ip_pool=['10.68.4.25', '120.53.30.236']
-
         slb = SLB(service_ip_pool=service_ip_pool,
                   msb=msb)
-
         slb.start()
 
         client = TCPClient()
-        client.generate_packet(dst_ip_list=slb.get_all_service_ip(),
+        packets = client.generate_packet(nums=10,
+                               dst_ip_list=slb.get_all_service_ip(),
                                dst_port_list=msb.get_all_service_publish_port())
-
+        NetWork.translate_packets(packets)
+        print(slb.packet_num)
 if __name__ == '__main__':
     Main().main_thread()
