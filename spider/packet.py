@@ -15,10 +15,10 @@ class IPPacket(object):
         self.packet = IP()
 
 class TCPPacket(object):
-    def __init__(self, dst_ip = '2.2.2.2',dst_port=1024):
-        self.src_ip = '1.0.0.1'
+    def __init__(self, src_ip = '1.1.1.1', src_port = 2000, dst_ip = '2.2.2.2',dst_port=1024):
+        self.src_ip = src_ip
         self.dst_ip = dst_ip
-        self.src_port = 1024
+        self.src_port = src_port
         self.dst_port = dst_port
         self.ip_packet = IP(src= self.src_ip, dst=self.dst_ip)
         self.tcp_packet = TCP(sport=self.src_port,  dport=self.dst_port)

@@ -27,10 +27,13 @@ class NetDevice(object, metaclass=ABCMeta):
 
 
 class SLB(NetDevice):
-    def __init__(self, msb):
+    def __init__(self,msb, service_ip_pool= None):
         super(SLB, self).__init__()
         self.apiroute = msb
-        self.service_ip_pool = ['2.2.2.2']
+        if service_ip_pool is None:
+            self.service_ip_pool = ['2.2.2.2']
+        else:
+            self.service_ip_pool = service_ip_pool
         self.nat_mapping = []
 
     def start(self):
@@ -53,7 +56,7 @@ class SLB(NetDevice):
                 print('no this mapping')
 
     def send_packet(self):
-        return self.packet_queue.get()
+        return self.packet_queue.get(timeout=1)
 
     def get_packet_level(self, packet):
         for mapping in self.get_mapping_table():
@@ -78,7 +81,7 @@ class SLB(NetDevice):
                 if rule not in self.nat_mapping:
                     self.nat_mapping.append(rule)
         return self.nat_mapping
-    def get_service_ip(self):
+    def get_all_service_ip(self):
         return self.service_ip_pool
 class NetWork(object):
     socket_list = []
@@ -138,7 +141,7 @@ class NetWork(object):
                     break
             else:
                 break
-
+        print('\n')
 
 class MSB(object):
     def __init__(self):
@@ -152,6 +155,11 @@ class MSB(object):
                 return service.get('service_external_port')
         return 'unknown'
 
+    def get_all_service_publish_port(self):
+        res = []
+        for service in self.service_table:
+            res.append(service.get('service_external_port'))
+        return  res
 
 
     def get_service_table(self):
@@ -245,29 +253,54 @@ class Service(NetDevice):
         if isinstance(packet, TCPPacket):
             self.packet_queue.put(packet)
             pass
-    
+
     def send_packet(self):
         return None
         pass
     pass
 
 class TCPClient(object):
-    def generate_packet(self):
-        pass
-
+    def generate_packet(self, nums=1,
+                        src_ip_list=None,
+                        dst_ip_list=None,
+                        src_port_list = None,
+                        dst_port_list=None):
+        if src_ip_list is None :
+            src_ip_list = ['1.1.1.1'] * 10
+        if dst_ip_list is None:
+            dst_ip_list = ['2.2.2.2'] * 10
+        if src_port_list is None:
+            src_port_list = [1000] * 10
+        if dst_port_list is None:
+            dst_port_list = [2000] * 10
+        min_length = min([len(src_port_list),
+                          len(src_ip_list),
+                          len(dst_port_list),
+                          len(dst_ip_list)])
+        for index in range(min_length):
+            packet = TCPPacket(src_ip=src_ip_list[index],
+                               src_port=src_port_list[index],
+                               dst_ip=dst_ip_list[index],
+                               dst_port=dst_port_list[index])
+            NetWork.translate(packet)
 
 class Main(object):
     def main_thread(self):
         k8s = K8S()
         msb = MSB()
-        service = Service('test_service', service_type='tcp')
+        service_name='test-service-1'
+        service = Service(service_name, service_type='tcp')
         service.start(k8s, msb)
-        slb = SLB(msb)
-        slb.start()
-        packet = TCPPacket(dst_ip=slb.get_service_ip()[0] ,
-                           dst_port=msb.get_service_publish_port('test_service'))
-        NetWork.translate(packet)
+        service_ip_pool=['10.68.4.25', '120.53.30.236']
 
+        slb = SLB(service_ip_pool=service_ip_pool,
+                  msb=msb)
+
+        slb.start()
+
+        client = TCPClient()
+        client.generate_packet(dst_ip_list=slb.get_all_service_ip(),
+                               dst_port_list=msb.get_all_service_publish_port())
 
 if __name__ == '__main__':
     Main().main_thread()
