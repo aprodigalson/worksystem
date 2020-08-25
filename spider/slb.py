@@ -1,13 +1,18 @@
-from worksystem.spider.packet import IPPacket, TCPPacket
+from worksystem.spider.packet import IPPacket, Packet
 import ipaddress
 from abc import ABCMeta, abstractmethod, ABC
 from queue import Queue
 import time
 
+
 class NetDevice(object, metaclass=ABCMeta):
     def __init__(self):
         self.__packet_queue = Queue(maxsize=10)
         pass
+
+    def add_socket(self):
+        pass
+
     @abstractmethod
     def receive_packet(self, packet):
         pass
@@ -27,7 +32,7 @@ class NetDevice(object, metaclass=ABCMeta):
 
 
 class SLB(NetDevice):
-    def __init__(self,msb, service_ip_pool= None):
+    def __init__(self, msb, service_ip_pool=None):
         super(SLB, self).__init__()
         self.apiroute = msb
         if service_ip_pool is None:
@@ -41,11 +46,14 @@ class SLB(NetDevice):
     def start(self):
         self.get_mapping_table()
         for ip in self.service_ip_pool:
-            #如果要使用网络，则需要执行NetWork.add_socket方法，类似与网口的占用
+            # 如果要使用网络，则需要执行NetWork.add_socket方法，类似与网口的占用
             NetWork.add_socket(ip, '', 'slb', self)
 
     def receive_packet(self, packet):
-        if isinstance(packet, TCPPacket):
+        if isinstance(packet, Packet):
+            if not self.need_slb_process(packet):
+                print('packet is not need slb to process')
+                return
             level, mapping = self.get_packet_level(packet)
             if level == 'l4':
                 inner_ip = mapping.get('inner_ip')
@@ -54,13 +62,27 @@ class SLB(NetDevice):
                 packet.set_dst_port(inner_port)
                 self.packet_queue.put(packet)
             elif level == 'l7':
+                print('apiroute', end=' ')
                 self.send_packet_to_apiroute(packet)
             else:
                 print('no this mapping')
 
+    def send_packet_to_apiroute(self,packet):
+        if isinstance(self.apiroute, MSB):
+            self.apiroute.receive_packet(packet)
+            packet = self.apiroute.send_packet()
+            self.packet_queue.put(packet)
+
     def send_packet(self):
         self.packet_num += 1
         return self.packet_queue.get(timeout=1)
+
+    def need_slb_process(self, packet):
+        if isinstance(packet, Packet):
+            if packet.get_dst_ip() in self.get_all_service_ip():
+                return True
+        return False
+
 
     def get_packet_level(self, packet):
         for mapping in self.get_mapping_table():
@@ -85,16 +107,20 @@ class SLB(NetDevice):
                 if rule not in self.nat_mapping:
                     self.nat_mapping.append(rule)
         return self.nat_mapping
+
     def get_all_service_ip(self):
         return self.service_ip_pool
+
+
 class NetWork(object):
     socket_list = []
-    null_socket={
-        'ip':'',
-        'port':'',
-        'name':'',
-        'object':None,
+    null_socket = {
+        'ip': '',
+        'port': '',
+        'name': '',
+        'object': None,
     }
+
     @staticmethod
     def add_socket(ip, port, name, obj):
         NetWork.socket_list.append({
@@ -103,12 +129,13 @@ class NetWork(object):
             'name': name,
             'object': obj
         })
+
     @staticmethod
     def get_socket(ip, port):
         for socket in NetWork.socket_list:
-            if ip== socket.get('ip') and port == socket.get('port'):
+            if ip == socket.get('ip') and port == socket.get('port'):
                 return socket
-            if ip==socket.get('ip') and socket.get('port')=='':
+            if ip == socket.get('ip') and socket.get('port') == '':
                 return socket
         return NetWork.null_socket
 
@@ -121,7 +148,7 @@ class NetWork(object):
     def translate(packet):
         is_first = True
         while True:
-            if isinstance(packet, TCPPacket):
+            if isinstance(packet, Packet):
                 dst_ip = packet.get_dst_ip()
                 dst_port = packet.get_dst_port()
                 dst = NetWork.get_socket(dst_ip, dst_port)
@@ -129,8 +156,8 @@ class NetWork(object):
                 src_port = packet.get_src_port()
                 src = NetWork.get_socket(src_ip, src_port)
                 if is_first:
-                    print('[src:('+str(src_ip)+':'+str(src_port)+')'+
-                          'dst:' + '('+str(dst_ip)+':'+str(dst_port)+')]' +
+                    print('[src:(' + str(src_ip) + ':' + str(src_port) + ')' +
+                          'dst:' + '(' + str(dst_ip) + ':' + str(dst_port) + ')]' +
                           ' ===>> ' + str(dst.get('name')),
                           end=' ')
                     is_first = False
@@ -152,11 +179,36 @@ class NetWork(object):
                 break
         print('\n')
 
-class MSB(object):
+
+class MSB(NetDevice):
     def __init__(self):
+        super(MSB, self).__init__()
         self.service_table = []
-        self.port_list = list(range(10000,65535))
+        self.port_list = list(range(10000, 65535))
         self.allocated_port_list = []
+
+    def receive_packet(self, packet):
+        if isinstance(packet, Packet):
+            port = packet.get_dst_port()
+            service = self.get_service_by_port(port)
+            if service is None:
+                print('packet not need msb to process')
+                return
+            inner_ip = service.get('service_ip')
+            inner_port = service.get('service_port')
+            packet.set_dst_ip(inner_ip)
+            packet.set_dst_port(inner_port)
+            self.packet_queue.put(packet)
+        pass
+
+    def send_packet(self):
+        return self.packet_queue.get(timeout=1)
+
+    def get_service_by_port(self, port):
+        for service in self.service_table:
+            if port == service.get('service_external_port'):
+                return service
+        return None
 
     def get_service_publish_port(self, name):
         for service in self.service_table:
@@ -168,8 +220,7 @@ class MSB(object):
         res = []
         for service in self.service_table:
             res.append(service.get('service_external_port'))
-        return  res
-
+        return res
 
     def get_service_table(self):
         return self.service_table
@@ -182,7 +233,7 @@ class MSB(object):
 
         return False
 
-    def service_register(self, service_name ,service_ip, service_port, protocol):
+    def service_register(self, service_name, service_ip, service_port, protocol):
         # add mapping table
         tmp_port = self.allocate_port_to_service()
         if tmp_port is None:
@@ -204,10 +255,11 @@ class MSB(object):
                 return port
         return None
 
+
 class K8S(object):
     def __init__(self):
         self.ip_pool = ipaddress.ip_network('172.10.0.0/16')
-        self.port_pool = list(range(0,65535))
+        self.port_pool = list(range(0, 65535))
 
         self.allocated_ip_list = []
         self.allocated_port_list = []
@@ -219,7 +271,7 @@ class K8S(object):
         service_port = ''
         for ip in self.ip_pool:
             if ip not in self.allocated_ip_list:
-                ip=str(ip)
+                ip = str(ip)
                 self.allocated_ip_list.append(ip)
                 service_ip = ip
                 break
@@ -253,28 +305,30 @@ class Service(NetDevice):
         ip, port = k8s.get_pod_ip_port(self.name)
         NetWork.add_socket(ip, port, self.name, self)
         if isinstance(msb, MSB):
-            msb.service_register(self.name,ip, port, self.type)
+            msb.service_register(self.name, ip, port, self.type)
 
     def stop(self, k8s, msb):
         pass
 
     def receive_packet(self, packet):
-        if isinstance(packet, TCPPacket):
+        if isinstance(packet, Packet):
             self.packet_queue.put(packet)
             pass
 
     def send_packet(self):
         return None
         pass
+
     pass
+
 
 class TCPClient(object):
     def generate_packet(self, nums=1,
                         src_ip_list=None,
                         dst_ip_list=None,
-                        src_port_list = None,
+                        src_port_list=None,
                         dst_port_list=None):
-        if src_ip_list is None :
+        if src_ip_list is None:
             src_ip_list = ['1.1.1.1'] * nums
         if dst_ip_list is None:
             dst_ip_list = ['2.2.2.2'] * nums
@@ -288,33 +342,38 @@ class TCPClient(object):
                           len(dst_ip_list)])
         res = []
         for index in range(min_length):
-            packet = TCPPacket(src_ip=src_ip_list[index],
-                               src_port=src_port_list[index],
-                               dst_ip=dst_ip_list[index],
-                               dst_port=dst_port_list[index])
+            packet = Packet(src_ip=src_ip_list[index],
+                            src_port=src_port_list[index],
+                            dst_ip=dst_ip_list[index],
+                            dst_port=dst_port_list[index],
+                            proto='http')
             res.append(packet)
-        if len(res)<nums:
-            res.extend([res[0] for _ in range(nums-len(res))])
+        if len(res) < nums:
+            res.extend([res[0] for _ in range(nums - len(res))])
         return res
 
+
 class Main(object):
-    def main_thread(self):
+    @staticmethod
+    def main_thread():
         k8s = K8S()
         msb = MSB()
-        service_name='test-service-1'
+        service_name = 'test-service-1'
         service = Service(service_name,
                           service_type='tcp')
         service.start(k8s, msb)
-        service_ip_pool=['10.68.4.25', '120.53.30.236']
+        service_ip_pool = ['10.68.4.25', '120.53.30.236']
         slb = SLB(service_ip_pool=service_ip_pool,
                   msb=msb)
         slb.start()
 
         client = TCPClient()
         packets = client.generate_packet(nums=10,
-                               dst_ip_list=slb.get_all_service_ip(),
-                               dst_port_list=msb.get_all_service_publish_port())
+                                         dst_ip_list=slb.get_all_service_ip(),
+                                         dst_port_list=msb.get_all_service_publish_port())
         NetWork.translate_packets(packets)
         print(slb.packet_num)
+
+
 if __name__ == '__main__':
     Main().main_thread()
