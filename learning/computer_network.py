@@ -5,3 +5,30 @@ class ComputerNetwork(object):
         # TCP/IP 4层网络模型，数据链路层，网络层，传输层，应用层
         pass
 
+
+class PhysicalLayer(object):
+    pass
+
+
+class DataLinkLayer(object):
+    pass
+
+
+class NetworkLayer(object):
+    pass
+
+
+class TransportLayer(object):
+    pass
+
+
+class SessionLayer(object):
+    pass
+
+
+class PresentationLayer(object):
+    pass
+
+
+class ApplicationLayer(object):
+    pass
