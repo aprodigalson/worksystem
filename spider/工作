@@ -1,0 +1,11 @@
+python2切python3，
+1. 类似于升级，要兼容老得python2， 要支持新的python3
+2. 基本的语法不同（print, unicode, import)，
+   一些函数用法的不同(items, range),
+   一些函数库的用法不同，configparser, commands, mock
+3. 如果有的库不支持python3，需要重写相关业务代码
+4. 使用virtualenv 的也要同时切换。
+
+日志
+1. 要多多益善，格式尽量统一，语义要明确
+
