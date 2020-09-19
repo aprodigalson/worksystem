@@ -4,6 +4,7 @@ import casbin
 import time
 import json
 import os
+import datetime
 
 class Utils(object):
     @staticmethod
@@ -26,6 +27,14 @@ class StringUtils(object):
     def random_string(length=3):
         return ''.join(random.sample(string.ascii_letters, length))
 
+class DateUtils(object):
+    @staticmethod
+    def count_date_before_date(start_data=None, days=208):
+        if start_data is None:
+            start_data = datetime.datetime.now()
+        days = datetime.timedelta(days=-days)
+        end_data = start_data + days
+        print(end_data)
 
 if __name__ == '__main__':
-    pass
+    DateUtils.count_date_before_date()
