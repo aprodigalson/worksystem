@@ -40,6 +40,7 @@ class DateUtils(object):
 class IPUtils(object):
     @staticmethod
     def convert_decimal_mask_to_dotted_decimal(mask):
+        # turn 24 to 255.255.255.0
         return str(IP('255.255.255.255').make_net(mask).net())
 
 if __name__ == '__main__':
