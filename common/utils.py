@@ -5,6 +5,7 @@ import time
 import json
 import os
 import datetime
+from IPy import IP
 
 class Utils(object):
     @staticmethod
@@ -34,7 +35,12 @@ class DateUtils(object):
             start_data = datetime.datetime.now()
         days = datetime.timedelta(days=-days)
         end_data = start_data + days
-        print(end_data)
+        return end_data
+
+class IPUtils(object):
+    @staticmethod
+    def convert_decimal_mask_to_dotted_decimal(mask):
+        return str(IP('255.255.255.255').make_net(mask).net())
 
 if __name__ == '__main__':
-    DateUtils.count_date_before_date()
+    print(IPUtils.convert_decimal_mask_to_dotted_decimal(30))
